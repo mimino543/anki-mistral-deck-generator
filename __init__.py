@@ -34,8 +34,20 @@ FOLLOW_SOURCE = "(same as style-reference deck)"
 JSON_HINT = '{"deck_name": "...", "cards": [{"Field": "value", ...}]}'
 
 
+def _addon_manager():
+    # Anki <= 25.x exposes mw.addon_manager; Anki 26.x renamed it back to
+    # mw.addonManager. Support both.
+    return getattr(mw, "addon_manager", None) or getattr(mw, "addonManager", None)
+
+
 def _conf() -> dict:
-    return mw.addon_manager.getConfig(__name__) or {}
+    mgr = _addon_manager()
+    if mgr is None:
+        return {}
+    getter = getattr(mgr, "get_config", None) or getattr(mgr, "getConfig", None)
+    if getter is None:
+        return {}
+    return getter(__name__) or {}
 
 
 def _conf_int(conf: dict, key: str, default: int, lo: int, hi: int) -> int:

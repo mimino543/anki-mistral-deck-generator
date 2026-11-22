@@ -40,6 +40,7 @@ def _load_addon():
 
 
 addon = _load_addon()
+_load_addon_mw = addon.mw
 
 
 class ExtractJsonTests(unittest.TestCase):
@@ -116,6 +117,35 @@ class ConfigHelperTests(unittest.TestCase):
             addon._validate_base_url("http://localhost:8080/v1"),
             "http://localhost:8080/v1",
         )
+
+
+class ConfCompatTests(unittest.TestCase):
+    """_conf must work with both Anki <= 25.x (mw.addon_manager.get_config)
+    and Anki 26.x (mw.addonManager.getConfig) attribute naming."""
+
+    def test_snake_case_manager(self):
+        mgr = mock.MagicMock()
+        mgr.get_config.return_value = {"api_key": "k"}
+        del mgr.getConfig
+        mw = mock.MagicMock(spec=["addon_manager"])
+        mw.addon_manager = mgr
+        addon.mw = mw
+        try:
+            self.assertEqual(addon._conf(), {"api_key": "k"})
+        finally:
+            addon.mw = _load_addon_mw
+
+    def test_camel_case_manager_anki26(self):
+        mgr = mock.MagicMock()
+        mgr.getConfig.return_value = {"api_key": "k"}
+        del mgr.get_config
+        mw = mock.MagicMock(spec=["addonManager"])
+        mw.addonManager = mgr
+        addon.mw = mw
+        try:
+            self.assertEqual(addon._conf(), {"api_key": "k"})
+        finally:
+            addon.mw = _load_addon_mw
 
 
 class ManifestTests(unittest.TestCase):
