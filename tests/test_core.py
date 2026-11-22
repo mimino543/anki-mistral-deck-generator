@@ -6,6 +6,8 @@ The add-on imports `aqt` at module load, so we stub it before importing
 """
 
 import importlib.util
+import json
+import os
 import sys
 import types
 import unittest
@@ -114,6 +116,22 @@ class ConfigHelperTests(unittest.TestCase):
             addon._validate_base_url("http://localhost:8080/v1"),
             "http://localhost:8080/v1",
         )
+
+
+class ManifestTests(unittest.TestCase):
+    """Mirror Anki's _manifest_schema (qt/aqt/addons.py): 'package' and 'name'
+    are required strings; 'package' must be a plain folder name."""
+
+    def test_manifest_matches_anki_schema(self):
+        manifest = json.loads((REPO_ROOT / "manifest.json").read_text("utf-8"))
+        self.assertIsInstance(manifest.get("package"), str)
+        self.assertTrue(manifest["package"])
+        self.assertEqual(os.path.basename(manifest["package"]), manifest["package"])
+        self.assertIsInstance(manifest.get("name"), str)
+        self.assertTrue(manifest["name"])
+        for key in ("human_version", "homepage"):
+            if key in manifest:
+                self.assertIsInstance(manifest[key], str)
 
 
 class DeckSearchTests(unittest.TestCase):

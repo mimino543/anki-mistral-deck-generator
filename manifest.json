@@ -1,7 +1,6 @@
 {
-  "package_name": "mistral_deck_generator",
+  "package": "mistral_deck_generator",
   "name": "Mistral AI Deck Generator",
-  "version": "1.0.0",
-  "homepage": "https://github.com/mimino543/anki-mistral-deck-generator",
-  "min_anki_version": "2.1.50"
+  "human_version": "1.0.0",
+  "homepage": "https://github.com/mimino543/anki-mistral-deck-generator"
 }
