@@ -20,8 +20,9 @@ ability to **imitate the style of your existing decks**.
 
 ## Install
 
-1. Download or build `mistral_deck_generator.ankiaddon` (a zip of
-   `__init__.py`, `config.json`, `config.md`)
+1. Download `mistral_deck_generator.ankiaddon` from the
+   [releases page](../../releases) — it is built automatically from the repo
+   sources whenever a release is published
 2. In Anki: **Tools > Add-ons > Install from file** (or double-click the file)
 3. Restart Anki
 
@@ -46,6 +47,18 @@ ability to **imitate the style of your existing decks**.
    *"Italian cooking vocabulary, basic to intermediate, same style as my Spanish food deck."*
 3. Optionally select a deck to imitate and/or a note type
 4. Click **Generate**, review the cards, then **Add to Anki**
+
+## Making a release
+
+1. Go to **Releases > Draft a new release** on GitHub
+2. Tag a version (e.g. `v1.0.0`) and publish it
+3. The [Build workflow](.github/workflows/build.yml) packages
+   `__init__.py`, `config.json` and `config.md` into
+   `mistral_deck_generator.ankiaddon` and attaches it to the release
+   automatically
+
+You can also run the workflow manually from the **Actions** tab; the built
+file then appears as a workflow artifact.
 
 ## Build the .ankiaddon yourself
 
