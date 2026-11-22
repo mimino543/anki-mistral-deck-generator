@@ -7,8 +7,12 @@ existing decks by sampling real cards from them.
 
 - **api_key** (required): Your Mistral API key. Create one at
   https://console.mistral.ai (API Keys page) and paste it here.
+  Note: the key is stored in plaintext in Anki's add-on config
+  (`addons21/mistral_deck_generator/config.json`), so keep your profile
+  folder private.
 - **base_url**: Mistral API endpoint. Only change this if you use a proxy.
-  Should end with `/v1`.
+  Should end with `/v1`. Must use `https://` (plain `http://` is only
+  accepted for `localhost`, so the API key is never sent unencrypted).
 - **model**: Any Mistral chat model, e.g. `mistral-small-latest` (fast, cheap,
   good for cards) or `mistral-large-latest` (higher quality).
 - **temperature**: 0.0 = conservative and factual, 0.7 = more creative. For
