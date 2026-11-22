@@ -67,12 +67,23 @@ Two ways, both fully automated:
 ## Build the .ankiaddon yourself
 
 The add-on folder is the repo root (`__init__.py`, `config.json`,
-`config.md`). Zip those three files and rename the zip to
+`config.md`, `manifest.json`). Zip those files and rename the zip to
 `mistral_deck_generator.ankiaddon`:
 
 ```sh
-zip mistral_deck_generator.ankiaddon __init__.py config.json config.md
+zip mistral_deck_generator.ankiaddon __init__.py config.json config.md manifest.json
 ```
+
+## Development
+
+Run the unit tests (they stub out `aqt`, so no Anki installation is needed):
+
+```sh
+python3 -m unittest discover -s tests -v
+```
+
+Tests also run automatically on every push and pull request via the
+[Tests workflow](.github/workflows/test.yml).
 
 ## Requirements
 

@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Package add-on
-        run: zip mistral_deck_generator.ankiaddon __init__.py config.json config.md
+        run: zip mistral_deck_generator.ankiaddon __init__.py config.json config.md manifest.json
 
       - name: Create release and attach file
         if: github.event_name == 'workflow_dispatch'

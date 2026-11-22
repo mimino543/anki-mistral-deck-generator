@@ -6,9 +6,11 @@ import json
 import random
 import re
 import threading
+import time
 import urllib.error
 import urllib.request
 from collections import Counter
+from urllib.parse import urlparse
 
 from aqt import mw
 from aqt.qt import (
@@ -36,28 +38,80 @@ def _conf() -> dict:
     return mw.addon_manager.getConfig(__name__) or {}
 
 
+def _conf_int(conf: dict, key: str, default: int, lo: int, hi: int) -> int:
+    raw = conf.get(key, default)
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        raise ValueError(f"'{key}' must be a whole number, got {raw!r}.") from None
+    if not lo <= value <= hi:
+        raise ValueError(f"'{key}' must be between {lo} and {hi}, got {value}.")
+    return value
+
+
+def _conf_float(conf: dict, key: str, default: float, lo: float, hi: float) -> float:
+    raw = conf.get(key, default)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        raise ValueError(f"'{key}' must be a number, got {raw!r}.") from None
+    if not lo <= value <= hi:
+        raise ValueError(f"'{key}' must be between {lo} and {hi}, got {value}.")
+    return value
+
+
+def _validate_base_url(base_url: str) -> str:
+    parsed = urlparse(base_url)
+    if not parsed.netloc:
+        raise ValueError(f"'base_url' is not a valid URL: {base_url!r}.")
+    if parsed.scheme != "https" and parsed.hostname not in ("localhost", "127.0.0.1", "::1"):
+        raise ValueError(
+            f"'base_url' must use https (got {base_url!r}); http:// is only allowed "
+            "for localhost, otherwise your API key would be sent unencrypted."
+        )
+    return base_url.rstrip("/")
+
+
 # ---------------------------------------------------------------- API helpers
 
-def _post_json(url: str, api_key: str, payload: dict, timeout: int = 180) -> dict:
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
+def _post_json(url: str, api_key: str, payload: dict, timeout: int = 180,
+               retries: int = 1) -> dict:
+    last_error: Exception | None = None
+    for attempt in range(retries + 1):
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            method="POST",
+        )
         try:
-            detail = e.read().decode("utf-8", "replace")[:500]
-        except Exception:
-            detail = ""
-        raise RuntimeError(f"HTTP {e.code} from Mistral API: {detail}") from e
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                body = resp.read().decode("utf-8")
+        except urllib.error.HTTPError as e:
+            try:
+                detail = e.read().decode("utf-8", "replace")[:500]
+            except Exception:
+                detail = ""
+            raise RuntimeError(f"HTTP {e.code} from Mistral API: {detail}") from e
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            last_error = e
+            if attempt < retries:
+                time.sleep(2 * (attempt + 1))
+                continue
+            reason = getattr(e, "reason", None) or e
+            raise RuntimeError(
+                f"Could not reach the Mistral API ({reason}). "
+                "Check your network connection and the 'base_url' config."
+            ) from e
+        try:
+            return json.loads(body)
+        except json.JSONDecodeError as e:
+            raise RuntimeError("The Mistral API returned invalid JSON.") from e
+    raise RuntimeError("Could not reach the Mistral API.") from last_error
 
 
 def _extract_json(text: str) -> dict:
@@ -74,7 +128,8 @@ def _extract_json(text: str) -> dict:
 # ------------------------------------------------------------ deck inspection
 
 def _deck_note_ids(deck_name: str) -> list:
-    return list(mw.col.find_notes(f'deck:"{deck_name}"'))
+    escaped = deck_name.replace("\\", "\\\\").replace('"', '\\"')
+    return list(mw.col.find_notes(f'deck:"{escaped}"'))
 
 
 def _dominant_notetype(deck_name: str):
@@ -241,16 +296,30 @@ class GeneratorDialog(QDialog):
         except ValueError:
             showWarning("Number of cards must be a whole number.")
             return
-        count = max(1, min(count, int(conf.get("max_cards", 60))))
+        try:
+            max_cards = _conf_int(conf, "max_cards", 60, 1, 500)
+            sample_count = _conf_int(conf, "sample_count", 6, 0, 50)
+            temperature = _conf_float(conf, "temperature", 0.7, 0.0, 2.0)
+            base_url = _validate_base_url(
+                str(conf.get("base_url") or "https://api.mistral.ai/v1").strip()
+            )
+        except ValueError as e:
+            showWarning(f"Invalid configuration:\n\n{e}")
+            return
+        count = max(1, min(count, max_cards))
 
         source = self.source_combo.currentText()
         src_model = None
         examples = []
         if source != NO_SOURCE:
-            src_model = _dominant_notetype(source)
-            examples = _sample_examples(
-                source, int(conf.get("sample_count", 6)), src_model
-            )
+            try:
+                src_model = _dominant_notetype(source)
+                examples = _sample_examples(source, sample_count, src_model)
+            except Exception as e:  # noqa: BLE001 - report collection read errors
+                showWarning(
+                    f"Could not read style examples from deck '{source}':\n\n{e}"
+                )
+                return
 
         note_type_name = self.nt_combo.currentText()
         if note_type_name == FOLLOW_SOURCE:
@@ -267,7 +336,7 @@ class GeneratorDialog(QDialog):
         self._resolved_cloze = is_cloze
 
         payload = {
-            "model": conf.get("model", "mistral-small-latest"),
+            "model": str(conf.get("model") or "mistral-small-latest"),
             "messages": _build_messages(
                 prompt,
                 examples,
@@ -276,13 +345,13 @@ class GeneratorDialog(QDialog):
                 count,
                 self.deck_edit.text().strip(),
             ),
-            "temperature": float(conf.get("temperature", 0.7)),
+            "temperature": temperature,
+            "response_format": {"type": "json_object"},
         }
-        base_url = (conf.get("base_url", "https://api.mistral.ai/v1")).rstrip("/")
 
         self._busy = True
         self.generate_btn.setEnabled(False)
-        self._status("Generating cards with Mistral, this can take up to a minute...")
+        self._status("Generating cards with Mistral, this can take up to a couple of minutes...")
         threading.Thread(
             target=self._worker, args=(base_url, api_key, payload), daemon=True
         ).start()
@@ -384,6 +453,7 @@ class PreviewDialog(QDialog):
         is_cloze = self._is_cloze
 
         added = skipped = 0
+        seen_first_fields = set()
         for card in self._cards:
             note = mw.col.new_note(model)
             filled = False
@@ -400,7 +470,12 @@ class PreviewDialog(QDialog):
             if not filled:
                 skipped += 1
                 continue
-            if is_cloze and not re.search(r"{{c\d+::", note[field_names[0]]):
+            first_field = str(note[field_names[0]]).strip() if field_names else ""
+            if first_field and first_field in seen_first_fields:
+                skipped += 1
+                continue
+            seen_first_fields.add(first_field)
+            if is_cloze and not any(re.search(r"{{c\d+::", v) for v in note.fields):
                 skipped += 1
                 continue
             note.add_tag(TAG)
