@@ -50,15 +50,19 @@ ability to **imitate the style of your existing decks**.
 
 ## Making a release
 
-1. Go to **Releases > Draft a new release** on GitHub
-2. Tag a version (e.g. `v1.0.0`) and publish it
-3. The [Build workflow](.github/workflows/build.yml) packages
-   `__init__.py`, `config.json` and `config.md` into
-   `mistral_deck_generator.ankiaddon` and attaches it to the release
-   automatically
+Two ways, both fully automated:
 
-You can also run the workflow manually from the **Actions** tab; the built
-file then appears as a workflow artifact.
+**Option A — one click from the Actions tab:**
+1. Go to **Actions > Build .ankiaddon > Run workflow**
+2. Enter the tag (e.g. `v1.0.0`) and click **Run workflow**
+3. The workflow creates the tag, publishes the release, and attaches the
+   built `mistral_deck_generator.ankiaddon` automatically
+
+**Option B — draft on GitHub:**
+1. Go to **Releases > Draft a new release**
+2. Tag a version (e.g. `v1.0.0`) and publish it
+3. The [Build workflow](.github/workflows/build.yml) packages the add-on and
+   attaches `mistral_deck_generator.ankiaddon` to that release
 
 ## Build the .ankiaddon yourself
 
