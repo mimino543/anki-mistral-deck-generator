@@ -87,7 +87,7 @@ Tests also run automatically on every push and pull request via the
 
 ## Requirements
 
-- Anki 2.1.50+ (23.x/24.x recommended)
+- Anki 2.1.50+ (works on 23.x/24.x/25.x and 26.x)
 - A Mistral API key
 
 ## License
